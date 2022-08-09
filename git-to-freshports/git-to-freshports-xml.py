@@ -192,7 +192,7 @@ def main():
 
         log.debug("Writing commit message")
         text = ET.SubElement(update, 'LOG')
-        text.text = commit.message.strip()
+        text.text = commit.message.strip().encode('utf-8', 'ignore').decode('utf-8', 'ignore')
 
         log.debug("Writing author")
         people = ET.SubElement(update, 'PEOPLE')
