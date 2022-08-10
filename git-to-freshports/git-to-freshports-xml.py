@@ -133,7 +133,18 @@ def commit_range(repo: pygit2.Repository, commit_range: str):
 
     return list(reversed(result))
 
+# as taken from https://tousu.in/qa/?qa=986000/xml-filtering-out-certain-bytes-in-python
 
+def valid_xml_char_ordinal(c):
+    codepoint = ord(c)
+    # conditions ordered by presumed frequency
+    return (
+        0x20 <= codepoint <= 0xD7FF or
+        codepoint in (0x9, 0xA, 0xD) or
+        0xE000 <= codepoint <= 0xFFFD or
+        0x10000 <= codepoint <= 0x10FFFF
+        )
+    
 def main():
     config = get_config()
     configure_logging(config['log_level'], config['log_destination'])
@@ -192,7 +203,8 @@ def main():
 
         log.debug("Writing commit message")
         text = ET.SubElement(update, 'LOG')
-        text.text = commit.message.strip()
+        # strip out any non-XML characters
+        text.text = '' . join(c for c in commit.message.strip() if valid_xml_char_ordinal(c))
 
         log.debug("Writing author")
         people = ET.SubElement(update, 'PEOPLE')
