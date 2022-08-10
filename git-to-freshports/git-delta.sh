@@ -32,10 +32,6 @@ result=0
 
 for repo in ${repos}
 do
-   if [ "${repo}" != "ports" ]
-   then
-#      continue
-   fi
    logfile "Now processing repo: ${repo} ---------------"
 
    # convert the repo label to a physical directory on disk
@@ -77,14 +73,25 @@ do
       | sed -n 's/^commit refs\/remotes\///p' \
       | while read -r refname
    do
-# if we mention all these, and we are skipping most of them, that's a
-# lot of log lines to scroll past
-#      logfile "looking at $refname"
-      # for now, when testing, only this branch please
-      if [ "$refname" != "origin/2021Q2" ] && [ "$refname" != "origin/2021Q3" ] && [ "$refname" != "$MAIN_BRANCH" ]
-      then
-         continue
-      fi
+      case $refname in
+         origin/main)
+            echo $refname 'processing ****'
+            ;;
+
+#         origin/2020Q1)
+#            echo $refname is skipped for now re: https://github.com/FreshPorts/freshports/issues/379
+#            continue
+#            ;;
+#
+         origin/2[01][0-9][0-9]Q[1-4])
+            echo $refname 'processing ****'
+            ;;
+
+         *)
+            echo $refname skipping
+            continue
+            ;;
+      esac
 
       logfile "working on '$refname'"
       logfile "Is freshports/$refname defined on the repo '${repo}'?"
