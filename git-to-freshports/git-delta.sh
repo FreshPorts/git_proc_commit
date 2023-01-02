@@ -46,7 +46,6 @@ do
    # where is the repo directory?
    # This is the directory which contains the repos.
    REPODIR="${INGRESS_PORTS_DIR_BASE}/${dir}"
-   LATEST_FILE="${INGRESS_PORTS_DIR_BASE}/latest.${dir}"
 
    if [ -d ${REPODIR} ]; then
       logfile "REPODIR='${REPODIR}' exists"
@@ -156,7 +155,6 @@ do
          then
             logfile "new_latest = $(${GIT} rev-parse ${refname})"
 
-            # echo $new_latest > ${LATEST_FILE}
             # Store the last known commit that we just processed.
             git tag -m "last known commit of ${refname}" -f freshports/${refname} ${refname}
          else
