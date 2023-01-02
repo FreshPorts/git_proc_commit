@@ -77,11 +77,6 @@ do
             echo $refname 'processing ****'
             ;;
 
-#         origin/2020Q1)
-#            echo $refname is skipped for now re: https://github.com/FreshPorts/freshports/issues/379
-#            continue
-#            ;;
-#
          origin/2[01][0-9][0-9]Q[1-4])
             echo $refname 'processing ****'
             ;;
