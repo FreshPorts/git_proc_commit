@@ -68,7 +68,7 @@ do
    NAME_OF_REMOTE=$REMOTE
    MAIN_BRANCH="$NAME_OF_REMOTE/$NAME_OF_HEAD"
 
-   git for-each-ref --format '%(objecttype) %(refname)' \
+   ${GIT} for-each-ref --format '%(objecttype) %(refname)' \
       | sed -n 's/^commit refs\/remotes\///p' \
       | while read -r refname
    do
@@ -89,29 +89,29 @@ do
 
       logfile "working on '$refname'"
       logfile "Is freshports/$refname defined on the repo '${repo}'?"
-      logfile "running: git rev-parse -q --verify freshports/$refname^{}"
+      logfile "running: ${GIT} rev-parse -q --verify freshports/$refname^{}"
 
-      if ! git rev-parse -q --verify freshports/$refname^{}
+      if ! ${GIT} rev-parse -q --verify freshports/$refname^{}
       then
          if [ "$refname" == "$MAIN_BRANCH" ]
          then
             logfile "FATAL - '$MAIN_BRANCH' must have tag 'freshports/$refname' set manually  - special case the main branch because the best merge base is the most recent commit"
             exit
          fi
-         logfile "'git rev-parse -q --verify freshports/$refname^{}'" found nothing
+         logfile "'${GIT} rev-parse -q --verify freshports/$refname^{}'" found nothing
          logfile "Let's find the first commit in this branch"
-         first_ref=$(git merge-base $NAME_OF_REMOTE/$NAME_OF_HEAD $refname)
+         first_ref=$(${GIT} merge-base $NAME_OF_REMOTE/$NAME_OF_HEAD $refname)
          logfile "First ref is '$first_ref'"
          # get the first commit of that branch and create a tag.
          logfile "tagging that now:"
-         git tag -m "first known commit of $refname" -f freshports/$refname $first_ref
+         ${GIT} tag -m "first known commit of $refname" -f freshports/$refname $first_ref
       fi
 
       logfile "the latest commit we have for freshports/$refname is:"
       # not sent to logfile so it output is not prefixed with a timestamp
       # and therefore is aligned with the output of 'git rev-parse -q --verify' above.
       # This makes it easier to view in the logs.
-      git rev-parse freshports/$refname^{}
+      ${GIT} rev-parse freshports/$refname^{}
 
       # get list of commits, if only to document them here
       logfile "Running: ${GIT} rev-list freshports/$refname..$refname"
@@ -137,8 +137,8 @@ do
          # for ^{} https://gitirc.eu/gitrevisions.html
          # "A suffix ^ followed by an empty brace pair means the object could be a tag, and dereference the tag recursively until a non-tag object is found. "
          #
-         STARTPOINT=$(git rev-parse -q freshports/${refname}^{})
-         ENDPOINT=$(git rev-list -n 1 $refname)
+         STARTPOINT=$(${GIT} rev-parse -q freshports/${refname}^{})
+         ENDPOINT=$(${GIT} rev-list -n 1 $refname)
          BRANCH=$(echo $refname | sed -n -n 's/^${NAME_OF_REMOTE}\///p')
          BRANCH=${refname#$NAME_OF_REMOTE/}
          logfile "${SCRIPTDIR}/git-to-freshports-xml.py --repo ${repo} --path ${REPODIR} --branch $BRANCH --commit-range $STARTPOINT..$ENDPOINT --spooling ${INGRESS_SPOOLINGDIR} --output ${XML}"
@@ -151,7 +151,7 @@ do
             logfile "new_latest = $(${GIT} rev-parse ${refname})"
 
             # Store the last known commit that we just processed.
-            git tag -m "last known commit of ${refname}" -f freshports/${refname} ${refname}
+            ${GIT} tag -m "last known commit of ${refname}" -f freshports/${refname} ${refname}
          else
             logfatal "FATAL eror with git-to-freshports-xml.py result: $result"
          fi
