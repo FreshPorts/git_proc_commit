@@ -77,6 +77,5 @@ do
 
    done
 done
-logger things
 
 exit $result
