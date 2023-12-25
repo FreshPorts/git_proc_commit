@@ -17,9 +17,6 @@ fi
 # e.g. "doc ports src"
 repos="${REPOS_TO_CHECK_GIT}"
 
-# start with an empty file
-rm -f ${INGRESS_LATEST_COMMITS}
-
 LOGGERTAG='git-delta.sh'
 
 # what remote are we using on this repo?
@@ -55,9 +52,6 @@ do
 
    cd ${REPODIR}
 
-   # Bring local branch up-to-date with the local remote
-#   ${GIT} fetch
-
    NAME_OF_HEAD="main"
    NAME_OF_REMOTE=$REMOTE
    MAIN_BRANCH="$NAME_OF_REMOTE/$NAME_OF_HEAD"
@@ -83,5 +77,6 @@ do
 
    done
 done
+logger things
 
 exit $result
