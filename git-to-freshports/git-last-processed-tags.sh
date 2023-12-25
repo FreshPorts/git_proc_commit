@@ -1,8 +1,9 @@
 #!/bin/sh
 
-# process the new commits
-# based upon https://github.com/FreshPorts/git_proc_commit/issues/3
-# An idea from https://github.com/sarcasticadmin
+# Dump the latest processed commits.
+# based upon git-delta.sh
+# They should be kept in sync.
+#
 
 if [ ! -f /usr/local/etc/freshports/config.sh ]
 then
@@ -10,12 +11,14 @@ then
 	exit 1
 fi
 
+. /usr/local/etc/freshports/config.sh
+
 # this can be a space separated list of repositories to check
 # e.g. "doc ports src"
-repos=$1
+repos="${REPOS_TO_CHECK_GIT}"
 
-
-. /usr/local/etc/freshports/config.sh
+# start with an empty file
+rm -f ${INGRESS_LATEST_COMMITS}
 
 LOGGERTAG='git-delta.sh'
 
@@ -65,28 +68,18 @@ do
    do
       case $refname in
          origin/main)
-#            echo $refname 'processing ****'
             ;;
 
          origin/2[01][0-9][0-9]Q[1-4])
-#            echo $refname 'processing ****'
             ;;
 
          *)
-#            echo $refname skipping
             continue
             ;;
       esac
 
-      ref=$(${GIT} rev-parse -q --verify freshports/$refname^{})
-#      echo $ref
-
-      echo -n "$repo:freshports/$refname:"
-      # not sent to logfile so it output is not prefixed with a timestamp
-      # and therefore is aligned with the output of 'git rev-parse -q --verify' above.
-      # This makes it easier to view in the logs.
       ref=$(${GIT} rev-parse freshports/$refname^{})
-      echo "$ref"
+      echo "$repo:freshports/$refname:$ref"
 
    done
 done
