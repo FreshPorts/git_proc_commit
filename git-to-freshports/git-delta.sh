@@ -1,5 +1,6 @@
 #!/bin/sh
 
+# Let's review this code.
 # process the new commits
 # based upon https://github.com/FreshPorts/git_proc_commit/issues/3
 # An idea from https://github.com/sarcasticadmin
