@@ -122,7 +122,7 @@ def commit_range(repo: pygit2.Repository, commit_range: str):
     start_commit = repo.revparse_single(start_commit_ref)
     end_commit   = repo.revparse_single(end_commit_ref)
 
-    walker = repo.walk(end_commit.oid)
+    walker = repo.walk(end_commit.id)
     walker.simplify_first_parent()  # Avoid wandering off to merged branches. Same as 'git log --first-parent'
 
     result = []
@@ -171,7 +171,7 @@ def main():
 
     for order_number, commit in enumerate(commits):
         commit: pygit2.Commit
-        log.info(f"Processing commit '{commit.hex} {commit.message.splitlines()[0]}'")
+        log.info(f"Processing commit '{str(commit.id)} {commit.message.splitlines()[0]}'")
         root = ET.Element('UPDATES', Version=FORMAT_VERSION, Source='git')
         update = ET.SubElement(root, 'UPDATE')
 
@@ -193,11 +193,11 @@ def main():
             commit_branches = list(repo.branches.remote.with_commit(commit))
             commit_branches_num = len(commit_branches)
             if commit_branches_num == 0:
-                log.error(f"Unable to get branch name for commit {commit.hex}. "
+                log.error(f"Unable to get branch name for commit {str(commit.id)}. "
                           f"Make sure that the local tracking branch exists for the remote branch.")
                 continue
             elif commit_branches_num > 1:
-                log.warning(f"Ambiguity in getting branch name for commit {commit.hex}. Got branches: {commit_branches}."
+                log.warning(f"Ambiguity in getting branch name for commit {str(commit.id)}. Got branches: {commit_branches}."
                             f"Using the first one: {commit_branches[0]}")
             ET.SubElement(update, 'OS', Repo=config['repo'], Id=config['os'], Branch=commit_branches[0])
 
@@ -214,7 +214,7 @@ def main():
         ET.SubElement(people, 'AUTHOR',    AuthorName=f"{commit.author.name}",       AuthorEmail=f"{commit.author.email}")
 
         log.debug("Writing commit hash")
-        ET.SubElement(update, 'COMMIT', Hash=commit.hex, HashShort=commit.short_id,
+        ET.SubElement(update, 'COMMIT', Hash=str(commit.id), HashShort=commit.short_id,
                       Subject=commit.message.splitlines()[0], EncodingLoses="false", Repository=config['repo'])
 
         files = ET.SubElement(update, 'FILES')
@@ -244,7 +244,7 @@ def main():
 
         file_name = (f"{commit_datetime.year}.{commit_datetime.month:02d}.{commit_datetime.day:02d}."
                      f"{commit_datetime.hour:02d}.{commit_datetime.minute:02d}.{commit_datetime.second:02d}."
-                     f"{order_number:06d}.{commit.hex}.xml")
+                     f"{order_number:06d}.{str(commit.id)}.xml")
         file_mode = 'wb' if config['force'] else 'xb'
         log.debug("Dumping XML")
         try:
