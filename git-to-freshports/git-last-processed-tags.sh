@@ -5,13 +5,19 @@
 # They should be kept in sync.
 #
 
-if [ ! -f /usr/local/etc/freshports/config.sh ]
+CONFIG="/usr/local/etc/freshports/config.sh"
+if [ ! -f $CONFIG ]
 then
-	echo "/usr/local/etc/freshports/config.sh.sh not found by $0"
+	echo "$CONFIG not found by $0"
 	exit 1
 fi
 
-. /usr/local/etc/freshports/config.sh
+. $CONFIG
+
+if [ $OFFLINE = 1 ]
+then
+	exit 0
+fi
 
 # this can be a space separated list of repositories to check
 # e.g. "doc ports src"
