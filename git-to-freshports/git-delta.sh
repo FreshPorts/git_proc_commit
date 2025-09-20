@@ -65,6 +65,10 @@ do
    # Bring local branch up-to-date with the local remote
    logfile "Running: ${GIT} fetch:"
    ${GIT} fetch
+   if [ "$?" -ne "0" ]; then
+	logfile "Fatal error on git fetch: $?"
+	break;
+   fi
    logfile "fetch completed."
 
    NAME_OF_HEAD="main"
