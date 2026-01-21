@@ -176,7 +176,7 @@ def main():
         update = ET.SubElement(root, 'UPDATE')
 
         log.debug("Getting commit datetime")
-        commit_datetime = datetime.datetime.utcfromtimestamp(commit.commit_time)
+        commit_datetime = datetime.datetime.fromtimestamp(commit.commit_time, tz=datetime.UTC)
         log.debug(f"Commit datetime: {commit_datetime}")
 
         log.debug("Writing commit date")
