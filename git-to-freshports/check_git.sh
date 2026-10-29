@@ -11,7 +11,7 @@ fi
 
 . /usr/local/etc/freshports/config.sh
 
-LOGGERTAG=check_git.sh
+LOGGERTAG="check_git.sh[$$]"
 
 ${LOGGER} -t ${LOGGERTAG} $0 has started
 
