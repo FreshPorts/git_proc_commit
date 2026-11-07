@@ -4,7 +4,8 @@
 # based upon https://github.com/FreshPorts/git_proc_commit/issues/3
 # An idea from https://github.com/sarcasticadmin
 #
-# See also git-last-processed-tags.sh - used to backup the tags
+# Where we got to, for each repo and branch, is kept in a file: see
+# latest-commits.sh in the scripts repo.
 #
 
 if [ ! -f /usr/local/etc/freshports/config.sh ]
@@ -20,6 +21,15 @@ repos=$1
 . /usr/local/etc/freshports/config.sh
 
 LOGGERTAG='git-delta.sh'
+
+# latest_commit_get and latest_commit_set: where we got to, for each repo and branch
+if [ ! -r ${SCRIPTDIR}/latest-commits.sh ]
+then
+	logfatal "${SCRIPTDIR}/latest-commits.sh not found by $0"
+	exit 1
+fi
+
+. ${SCRIPTDIR}/latest-commits.sh
 
 logfile "has started. Will check these repos: '${repos}'"
 
@@ -95,34 +105,51 @@ do
       esac
 
       logfile "working on '$refname'"
-      logfile "Is freshports/$refname defined on the repo '${repo}'?"
-      logfile "running: ${GIT} rev-parse -q --verify freshports/$refname^{}"
+      # TRANSITION ONLY: the file and the tag must agree before either is used.
+      # Remove with the tags.
+      if ! mismatch=$(latest_commit_check ${repo} $refname ${REPODIR})
+      then
+         logfatal "FATAL - not processing $refname of repo '${repo}': $mismatch"
+         continue
+      fi
 
-      if ! ${GIT} rev-parse -q --verify freshports/$refname^{}
+      logfile "Is $refname of repo '${repo}' in ${LATEST_COMMITS_FILE}?"
+
+      STARTPOINT=$(latest_commit_get ${repo} $refname)
+      if [ -z "$STARTPOINT" ]
       then
          if [ "$refname" == "$MAIN_BRANCH" ]
          then
-            logfile "FATAL - '$MAIN_BRANCH' must have tag 'freshports/$refname' set manually  - special case the main branch because the best merge base is the most recent commit"
+            logfile "FATAL - '$MAIN_BRANCH' of repo '${repo}' must be set manually in ${LATEST_COMMITS_FILE} - special case the main branch because the best merge base is the most recent commit"
             exit
          fi
-         logfile "'${GIT} rev-parse -q --verify freshports/$refname^{}'" found nothing
-         logfile "Let's find the first commit in this branch"
+         logfile "Not found. Let's find the first commit in this branch"
          first_ref=$(${GIT} merge-base $NAME_OF_REMOTE/$NAME_OF_HEAD $refname)
          logfile "First ref is '$first_ref'"
-         # get the first commit of that branch and create a tag.
-         logfile "tagging that now:"
+         logfile "recording that now:"
+         if ! latest_commit_set ${repo} $refname $first_ref
+         then
+            logfatal "FATAL - could not record '$first_ref' for $refname of repo '${repo}' in ${LATEST_COMMITS_FILE}"
+            continue
+         fi
+         # Transition: still kept in the repo too, so the previous release can
+         # be put back.  To be removed in the next release.
          ${GIT} tag -m "first known commit of $refname" -f freshports/$refname $first_ref
+         STARTPOINT=$first_ref
       fi
 
-      logfile "the latest commit we have for freshports/$refname is:"
-      # not sent to logfile so it output is not prefixed with a timestamp
-      # and therefore is aligned with the output of 'git rev-parse -q --verify' above.
-      # This makes it easier to view in the logs.
-      ${GIT} rev-parse freshports/$refname^{}
+      logfile "the latest commit we have for $refname is: $STARTPOINT"
+
+      # e.g. a repo cloned again, and not yet fetched as far as the file says
+      if ! ${GIT} cat-file -e "${STARTPOINT}^{commit}"
+      then
+         logfatal "FATAL - '$STARTPOINT' for $refname, from ${LATEST_COMMITS_FILE}, is not a commit in ${REPODIR}"
+         continue
+      fi
 
       # get list of commits, if only to document them here
-      logfile "Running: ${GIT} rev-list freshports/$refname..$refname"
-      commits=$(${GIT} rev-list freshports/$refname..$refname)
+      logfile "Running: ${GIT} rev-list $STARTPOINT..$refname"
+      commits=$(${GIT} rev-list $STARTPOINT..$refname)
       logfile "Done."
 
       if [ -z "$commits" ]
@@ -136,15 +163,9 @@ do
          done
 
          #
-         # get the commit hashes associated with each of these tags
-         # git-to-freshports-xml.py needs hashes, not tags
-         # see https://stackoverflow.com/questions/1862423/how-to-tell-which-commit-a-tag-points-to-in-git/1862542#1862542
-         #     https://news.freshports.org/2021/06/27/putting-the-new-git-delta-sh-into-use-on-devgit-freshports-org/
+         # git-to-freshports-xml.py needs hashes, not refs.
+         # STARTPOINT is already one; see https://news.freshports.org/2021/06/27/putting-the-new-git-delta-sh-into-use-on-devgit-freshports-org/
          #
-         # for ^{} https://gitirc.eu/gitrevisions.html
-         # "A suffix ^ followed by an empty brace pair means the object could be a tag, and dereference the tag recursively until a non-tag object is found. "
-         #
-         STARTPOINT=$(${GIT} rev-parse -q freshports/${refname}^{})
          ENDPOINT=$(${GIT} rev-list -n 1 $refname)
          BRANCH=$(echo $refname | sed -n -n 's/^${NAME_OF_REMOTE}\///p')
          BRANCH=${refname#$NAME_OF_REMOTE/}
@@ -155,10 +176,24 @@ do
          logfile "${SCRIPTDIR}/git-to-freshports-xml.py result: $result"
          if [ "$result" == "0" ]
          then
-            logfile "new_latest = $(${GIT} rev-parse ${refname})"
+            logfile "new_latest = ${ENDPOINT}"
 
             # Store the last known commit that we just processed.
-            ${GIT} tag -m "last known commit of ${refname}" -f freshports/${refname} ${refname}
+            # ENDPOINT, not ${refname}: that is what was processed.
+            if ! latest_commit_set ${repo} ${refname} ${ENDPOINT}
+            then
+               logfatal "FATAL - could not record '${ENDPOINT}' for ${refname} of repo '${repo}' in ${LATEST_COMMITS_FILE}: these commits will be processed again"
+            fi
+
+            # Transition: still kept in the repo too, so the previous release can
+            # be put back.  To be removed in the next release.
+            ${GIT} tag -m "last known commit of ${refname}" -f freshports/${refname} ${ENDPOINT}
+
+            # TRANSITION ONLY: and they still agree.  Remove with the tags.
+            if ! mismatch=$(latest_commit_check ${repo} ${refname} ${REPODIR})
+            then
+               logfatal "FATAL - after recording $refname of repo '${repo}': $mismatch"
+            fi
          else
             logfatal "FATAL eror with git-to-freshports-xml.py result: $result"
          fi
