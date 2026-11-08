@@ -105,13 +105,6 @@ do
       esac
 
       logfile "working on '$refname'"
-      # TRANSITION ONLY: the file and the tag must agree before either is used.
-      # Remove with the tags.
-      if ! mismatch=$(latest_commit_check ${repo} $refname ${REPODIR})
-      then
-         logfatal "FATAL - not processing $refname of repo '${repo}': $mismatch"
-         continue
-      fi
 
       logfile "Is $refname of repo '${repo}' in ${LATEST_COMMITS_FILE}?"
 
@@ -132,9 +125,6 @@ do
             logfatal "FATAL - could not record '$first_ref' for $refname of repo '${repo}' in ${LATEST_COMMITS_FILE}"
             continue
          fi
-         # Transition: still kept in the repo too, so the previous release can
-         # be put back.  To be removed in the next release.
-         ${GIT} tag -m "first known commit of $refname" -f freshports/$refname $first_ref
          STARTPOINT=$first_ref
       fi
 
@@ -183,16 +173,6 @@ do
             if ! latest_commit_set ${repo} ${refname} ${ENDPOINT}
             then
                logfatal "FATAL - could not record '${ENDPOINT}' for ${refname} of repo '${repo}' in ${LATEST_COMMITS_FILE}: these commits will be processed again"
-            fi
-
-            # Transition: still kept in the repo too, so the previous release can
-            # be put back.  To be removed in the next release.
-            ${GIT} tag -m "last known commit of ${refname}" -f freshports/${refname} ${ENDPOINT}
-
-            # TRANSITION ONLY: and they still agree.  Remove with the tags.
-            if ! mismatch=$(latest_commit_check ${repo} ${refname} ${REPODIR})
-            then
-               logfatal "FATAL - after recording $refname of repo '${repo}': $mismatch"
             fi
          else
             logfatal "FATAL eror with git-to-freshports-xml.py result: $result"
