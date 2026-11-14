@@ -290,21 +290,37 @@ def main():
         file_name = (f"{commit_datetime.year}.{commit_datetime.month:02d}.{commit_datetime.day:02d}."
                      f"{commit_datetime.hour:02d}.{commit_datetime.minute:02d}.{commit_datetime.second:02d}."
                      f"{order_number:06d}.{str(commit.id)}.xml")
-        file_mode = 'wb' if config['force'] else 'xb'
-        log.debug("Dumping XML")
-        try:
-            with tempfile.NamedTemporaryFile(prefix='FreshPorts.ingress.', dir=config['spooling'], delete=False) as temp_file:
-                temp_file.write(ET.tostring(root, xml_declaration=True, encoding="UTF-8", pretty_print=True))
-                temp_file.close()
+        destination = Path(config['output'], file_name)
 
-                # write to a spooling directory to avoid race conditions with ingress writing and freshports reading.
-                # we chmod 0644 so ingress and freshports can both write.
-                # then we move.
-                os.chmod(temp_file.name, 0o664)
-                shutil.move(temp_file.name, Path(config['output'], file_name))
-        except FileExistsError as e:
-            log.warning(f"{e}, if you want to overwrite it - please specify '--force' flag")
-        
+        #
+        # An XML file already waiting in the output directory is left alone
+        # unless --force is given.  That was always the intent, but
+        # shutil.move() overwrites without complaint, so the FileExistsError
+        # handler never ran and --force made no difference: the file was
+        # always replaced.
+        #
+        if destination.exists() and not config['force']:
+            log.warning(f"{destination} already exists; not replacing it.  Use --force to replace it.")
+            continue
+
+        log.debug("Dumping XML")
+
+        # Write to the spooling directory, then move into the output
+        # directory, so the loader never reads a half-written file.  0664 so
+        # that both ingress and freshports can write to it.
+        temp_file = tempfile.NamedTemporaryFile(prefix='FreshPorts.ingress.', dir=config['spooling'], delete=False)
+        try:
+            with temp_file:
+                temp_file.write(ET.tostring(root, xml_declaration=True, encoding="UTF-8", pretty_print=True))
+            os.chmod(temp_file.name, 0o664)
+            shutil.move(temp_file.name, destination)
+        finally:
+            # After a successful move this finds nothing.  After a failure
+            # it removes the half-made FreshPorts.ingress.* file, which used
+            # to be left in the spooling directory.
+            if os.path.exists(temp_file.name):
+                os.unlink(temp_file.name)
+
         log.debug("Processing complete")
 
 
