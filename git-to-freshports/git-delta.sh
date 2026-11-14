@@ -31,6 +31,23 @@ fi
 
 . ${SCRIPTDIR}/latest-commits.sh
 
+#
+# No file, or an empty one, means we do not know where we got to: stop.
+#
+# Carrying on looked like "every branch is new".  latest_commit_get gives
+# the same empty answer for a missing file as for a missing line, so each
+# quarterly branch was started again from where it left main, and every
+# commit on every branch since 2020Q4 was turned into XML again before
+# main reached its "must be set manually".  That happens when the
+# latest_commits dataset is not mounted, or LATEST_COMMITS_FILE is wrong.
+# A missing line in a file which has lines is still a new branch.
+#
+if [ ! -s "${LATEST_COMMITS_FILE}" ] || [ ! -r "${LATEST_COMMITS_FILE}" ]
+then
+	logfatal "FATAL - ${LATEST_COMMITS_FILE} is missing, empty or unreadable: not processing any commits"
+	exit 1
+fi
+
 logfile "has started. Will check these repos: '${repos}'"
 
 # what remote are we using on this repo?
