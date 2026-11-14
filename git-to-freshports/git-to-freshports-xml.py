@@ -53,17 +53,17 @@ def get_config() -> dict:
     parser.add_argument('-p', '--path',     type=Path, required=True, help="Path to the repository")
     parser.add_argument('-O', '--output',   type=Path, required=True, help="Output directory. Must already exist")
     parser.add_argument('-S', '--spooling', type=Path, required=True, help="Spooling directory. Must already exist and be on the same filesystem as --output")
-    parser.add_argument('-r', '--repo',     required=True,            help="Repository we're working on. Defaults to 'ports'")
+    parser.add_argument('-r', '--repo',     required=True,            help="Repository we're working on: ports, src or doc")
     parser.add_argument('-o', '--os',       default='FreeBSD',        help="OS we're working on. Defaults to 'FreeBSD'")
     parser.add_argument('-f', '--force',    action='store_true',      help="Overwrite commit XML files if they already exist")
     parser.add_argument('-v', '--verbose',  action='store_const', const='DEBUG', default='INFO', dest='log_level', 
                                                                       help="Print more debug information")
     parser.add_argument('-l', '--log-dest', choices={'syslog', 'stderr'}, default='syslog', dest='log_destination',
-                        help="Logging destination. Defaults to 'sylog'")
+                        help="Logging destination. Defaults to 'syslog'")
     parser.add_argument('-b', '--branch',   type=str, help='The branch upon which this commit occurs')
 
     commit_group = parser.add_mutually_exclusive_group(required=True)
-    commit_group.add_argument('-c', '--commit',        help="Commit to process the tree since. Equivalent to '--commit-range=<commit>..HEAD'")
+    commit_group.add_argument('-c', '--commit',        help="Commit to process the tree since, up to the local HEAD. Equivalent to '--commit-range=<commit>..HEAD'. git fetch does not move the local HEAD, so in the ingress repos use --commit-range instead")
     commit_group.add_argument('-s', '--single-commit', help="Process only the supplied commit")
     commit_group.add_argument('-R', '--commit-range',  help="Range of commits to process in git format (FROM..TO)")
 
@@ -236,8 +236,8 @@ def main():
             commit_branches = list(repo.branches.remote.with_commit(commit))
             commit_branches_num = len(commit_branches)
             if commit_branches_num == 0:
-                log.error(f"Unable to get branch name for commit {str(commit.id)}. "
-                          f"Make sure that the local tracking branch exists for the remote branch.")
+                log.error(f"Unable to get branch name for commit {str(commit.id)}: "
+                          f"no remote branch contains it.  Pass --branch.")
                 continue
             elif commit_branches_num > 1:
                 log.warning(f"Ambiguity in getting branch name for commit {str(commit.id)}. Got branches: {commit_branches}."

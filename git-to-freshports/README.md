@@ -5,12 +5,13 @@ Used to convert GIT commit entries into XML files digestible by the FreshPorts b
 
 Installation:
 ```shell script
-pkg install python3 py37-lxml py37-pygit2
+pkg install python3 py314-lxml py314-pygit2
 ```
 
 Running:
 ```shell script
-python3 git-to-freshports-xml.py --path /path/to/git/repo --commit deafbeaf0 --output /path/to/xml/results
+python3 git-to-freshports-xml.py --repo ports --path /path/to/git/repo --branch main \
+    --commit-range FROM..TO --spooling /path/to/spooling --output /path/to/xml/results
 ```
 
 Getting help:
@@ -20,6 +21,6 @@ python3 git-to-freshports-xml.py --help
 
 Running unit tests:
 ```shell script
-pkg install py37-pytest
-python3 -m pytest
+pkg install py314-pytest
+python3 -m pytest tests/
 ```

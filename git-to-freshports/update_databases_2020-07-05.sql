@@ -12,3 +12,5 @@ A - add
 M - modify
 R - remove for subersion, delete for git
 r - rename (added for git)';
+
+commit;

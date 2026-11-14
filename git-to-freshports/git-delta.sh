@@ -10,7 +10,7 @@
 
 if [ ! -f /usr/local/etc/freshports/config.sh ]
 then
-	echo "/usr/local/etc/freshports/config.sh.sh not found by $0"
+	echo "/usr/local/etc/freshports/config.sh not found by $0"
 	exit 1
 fi
 
@@ -193,7 +193,6 @@ do
          # STARTPOINT is already one; see https://news.freshports.org/2021/06/27/putting-the-new-git-delta-sh-into-use-on-devgit-freshports-org/
          #
          ENDPOINT=$(${GIT} rev-list -n 1 $refname)
-         BRANCH=$(echo $refname | sed -n -n 's/^${NAME_OF_REMOTE}\///p')
          BRANCH=${refname#$NAME_OF_REMOTE/}
          logfile "${SCRIPTDIR}/git-to-freshports-xml.py --repo ${repo} --path ${REPODIR} --branch $BRANCH --commit-range $STARTPOINT..$ENDPOINT --spooling ${INGRESS_SPOOLINGDIR} --output ${XML}"
                   ${SCRIPTDIR}/git-to-freshports-xml.py --repo ${repo} --path ${REPODIR} --branch $BRANCH --commit-range $STARTPOINT..$ENDPOINT --spooling ${INGRESS_SPOOLINGDIR} --output ${XML}
