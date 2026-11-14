@@ -119,17 +119,37 @@ def configure_logging(log_level: str, log_destination: str) -> None:
 
 def commit_range(repo: pygit2.Repository, commit_range: str):
     start_commit_ref, end_commit_ref = commit_range.split('..')
-    start_commit = repo.revparse_single(start_commit_ref)
-    end_commit   = repo.revparse_single(end_commit_ref)
+    start_commit = repo.revparse_single(start_commit_ref).peel(pygit2.Commit)
+    end_commit   = repo.revparse_single(end_commit_ref).peel(pygit2.Commit)
 
+    #
+    # Walk first parents back from END, hiding START and everything before
+    # it.  When START is on END's first-parent line, that gives exactly the
+    # commits after START, as before.
+    #
+    # The walk used to stop only on reaching START.  When START was not on
+    # that line -- a force-push, a merge whose first parent is not the old
+    # tip, or FROM and TO swapped -- it never did, and every commit back to
+    # the root was written out: hundreds of thousands of XML files, and
+    # git-delta.sh then recorded END as done.  hide() keeps the walk short,
+    # and the check below refuses such a range before anything is written.
+    #
     walker = repo.walk(end_commit.id)
     walker.simplify_first_parent()  # Avoid wandering off to merged branches. Same as 'git log --first-parent'
+    walker.hide(start_commit.id)
 
-    result = []
-    for commit in walker:
-        if commit == start_commit:
-            break
-        result.append(commit)
+    result = list(walker)
+
+    if result:
+        oldest = result[-1]
+        on_line = bool(oldest.parents) and oldest.parents[0].id == start_commit.id
+    else:
+        on_line = end_commit.id == start_commit.id
+
+    if not on_line:
+        log.error(f"{start_commit.id} is not on the first-parent line of {end_commit.id}: "
+                  f"refusing the range {commit_range} rather than guessing where it starts")
+        sys.exit(1)
 
     return list(reversed(result))
 
