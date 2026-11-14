@@ -144,7 +144,29 @@ def valid_xml_char_ordinal(c):
         0xE000 <= codepoint <= 0xFFFD or
         0x10000 <= codepoint <= 0x10FFFF
         )
-    
+
+def xml_text(s) -> str:
+    """Drop the characters XML cannot hold, e.g. ESC from pasted terminal output.
+
+    lxml refuses them with ValueError ("All strings must be XML
+    compatible").  Only LOG used to be filtered, so one such character in a
+    subject, a name, an email or a path stopped the whole run, every later
+    run stopped on the same commit, and that branch was stuck until someone
+    stepped in.  A path which is not UTF-8 reaches us with lone surrogates
+    for its odd bytes; those are dropped too.
+    """
+    return ''.join(c for c in str(s) if valid_xml_char_ordinal(c))
+
+def commit_subject(message: str) -> str:
+    """The first non-blank line of the message, or '' for an empty message.
+
+    message.splitlines()[0] raised IndexError on an empty message, which git
+    allows (--allow-empty-message), with the same stuck branch as above.
+    """
+    for line in message.strip().splitlines():
+        return xml_text(line)
+    return ''
+
 def main():
     config = get_config()
     configure_logging(config['log_level'], config['log_destination'])
@@ -171,7 +193,8 @@ def main():
 
     for order_number, commit in enumerate(commits):
         commit: pygit2.Commit
-        log.info(f"Processing commit '{str(commit.id)} {commit.message.splitlines()[0]}'")
+        subject = commit_subject(commit.message)
+        log.info(f"Processing commit '{str(commit.id)} {subject}'")
         root = ET.Element('UPDATES', Version=FORMAT_VERSION, Source='git')
         update = ET.SubElement(root, 'UPDATE')
 
@@ -204,18 +227,18 @@ def main():
         log.debug("Writing commit message")
         text = ET.SubElement(update, 'LOG')
         # strip out any non-XML characters
-        text.text = '' . join(c for c in commit.message.strip() if valid_xml_char_ordinal(c))
+        text.text = xml_text(commit.message.strip())
 
         log.debug("Writing author")
         people = ET.SubElement(update, 'PEOPLE')
 
-        ET.SubElement(people, 'COMMITTER', CommitterName=f"{commit.committer.name}", CommitterEmail=f"{commit.committer.email}")
+        ET.SubElement(people, 'COMMITTER', CommitterName=xml_text(commit.committer.name), CommitterEmail=xml_text(commit.committer.email))
 
-        ET.SubElement(people, 'AUTHOR',    AuthorName=f"{commit.author.name}",       AuthorEmail=f"{commit.author.email}")
+        ET.SubElement(people, 'AUTHOR',    AuthorName=xml_text(commit.author.name),       AuthorEmail=xml_text(commit.author.email))
 
         log.debug("Writing commit hash")
         ET.SubElement(update, 'COMMIT', Hash=str(commit.id), HashShort=commit.short_id,
-                      Subject=commit.message.splitlines()[0], EncodingLoses="false", Repository=config['repo'])
+                      Subject=subject, EncodingLoses="false", Repository=config['repo'])
 
         files = ET.SubElement(update, 'FILES')
 
@@ -231,16 +254,16 @@ def main():
             change_type = diff_delta.status_char()
             if change_type == 'A':
                 log.debug(f"Writing change: <new> -> {diff_delta.new_file.path}")
-                ET.SubElement(files, 'FILE', Action='Add', Path=diff_delta.new_file.path)
+                ET.SubElement(files, 'FILE', Action='Add', Path=xml_text(diff_delta.new_file.path))
             elif change_type == 'D':
                 log.debug(f"Writing change: {diff_delta.old_file.path} -> <deleted>")
-                ET.SubElement(files, 'FILE', Action='Delete', Path=diff_delta.old_file.path)
+                ET.SubElement(files, 'FILE', Action='Delete', Path=xml_text(diff_delta.old_file.path))
             elif change_type == 'R':
                 log.debug(f"Writing change: {diff_delta.old_file.path} -> {diff_delta.new_file.path}")
-                ET.SubElement(files, 'FILE', Action='Rename', Path=diff_delta.old_file.path, Destination=diff_delta.new_file.path)
+                ET.SubElement(files, 'FILE', Action='Rename', Path=xml_text(diff_delta.old_file.path), Destination=xml_text(diff_delta.new_file.path))
             else:  # M and T types
                 log.debug(f"Writing change: {diff_delta.old_file.path}")
-                ET.SubElement(files, 'FILE', Action='Modify', Path=diff_delta.old_file.path)
+                ET.SubElement(files, 'FILE', Action='Modify', Path=xml_text(diff_delta.old_file.path))
 
         file_name = (f"{commit_datetime.year}.{commit_datetime.month:02d}.{commit_datetime.day:02d}."
                      f"{commit_datetime.hour:02d}.{commit_datetime.minute:02d}.{commit_datetime.second:02d}."
