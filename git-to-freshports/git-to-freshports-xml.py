@@ -258,7 +258,7 @@ def main():
 
         log.debug("Writing commit hash")
         ET.SubElement(update, 'COMMIT', Hash=str(commit.id), HashShort=commit.short_id,
-                      Subject=subject, EncodingLoses="false", Repository=config['repo'])
+                      Subject=subject, EncodingLosses="false", Repository=config['repo'])
 
         files = ET.SubElement(update, 'FILES')
 
@@ -278,9 +278,11 @@ def main():
             elif change_type == 'D':
                 log.debug(f"Writing change: {diff_delta.old_file.path} -> <deleted>")
                 ET.SubElement(files, 'FILE', Action='Delete', Path=xml_text(diff_delta.old_file.path))
-            elif change_type == 'R':
-                log.debug(f"Writing change: {diff_delta.old_file.path} -> {diff_delta.new_file.path}")
-                ET.SubElement(files, 'FILE', Action='Rename', Path=xml_text(diff_delta.old_file.path), Destination=xml_text(diff_delta.new_file.path))
+            # No 'R': without diff.find_similar() git reports a rename as a
+            # delete plus an add, which xml_munge_git.pm handles.  The branch
+            # which wrote Action='Rename' could never run, and has gone; had
+            # it run, xml_munge_git.pm accepts Rename but never reads
+            # Destination, so the new path would have been lost.
             else:  # M and T types
                 log.debug(f"Writing change: {diff_delta.old_file.path}")
                 ET.SubElement(files, 'FILE', Action='Modify', Path=xml_text(diff_delta.old_file.path))
