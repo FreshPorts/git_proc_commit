@@ -5,11 +5,20 @@
 # An idea from https://github.com/sarcasticadmin
 
 # a single commit hash
+# usage: git-range-of-commits.sh repo from to [branch]
+#
+# Processes the commits after from, up to and including to.  branch is
+# the branch they are on: main, or a quarterly branch such as 2026Q4.  It
+# defaults to main.  It used to be left to git-to-freshports-xml.py, which
+# took the first remote branch containing each commit: a name such as
+# origin/HEAD or origin/2020Q4, which xml_munge_git.pm does not know, so
+# the commits were filed under a branch of that name.
 repo=$1
 commit_hash1=$2
 commit_hash2=$3
+branch=${4:-main}
 
-echo "$0 starting up with repo='$repo' and commit='$commit_hash1'..'$commit_hash2'"
+echo "$0 starting up with repo='$repo', commits '$commit_hash1'..'$commit_hash2' and branch='$branch'"
 
 if [ ! -f /usr/local/etc/freshports/config.sh ]
 then
@@ -27,7 +36,8 @@ dir=$(convert_repo_label_to_directory ${repo})
 # empty means error
 if [  "${dir}" == "" ]; then
    ${LOGGER} -t ${LOGGERTAG} FATAL error, repo='${repo}' is unknown: cannot translate it to a directory name
-   continue
+   echo "FATAL error, repo='${repo}' is unknown"
+   exit 1
 fi
 
 
@@ -37,7 +47,8 @@ REPODIR="${INGRESS_PORTS_DIR_BASE}/${dir}"
 
 if [ ! -d ${REPODIR} ]; then
    ${LOGGER} -t ${LOGGERTAG} FATAL error, REPODIR='${REPODIR}' is not a directory
-   continue
+   echo "FATAL error, REPODIR='${REPODIR}' is not a directory"
+   exit 1
 fi
   
 
@@ -50,10 +61,14 @@ XML="${INGRESS_MSGDIR}/incoming"
 logfile "repo is $REPODIR"
 logfile "XML dir is $XML"
 
-cd ${REPODIR}
+cd ${REPODIR} || exit 1
 
-logfile "${SCRIPTDIR}/git-to-freshports-xml.py --repo ${repo} --path ${REPODIR} --commit-range ${commit_hash1}..${commit_hash2} --spooling ${INGRESS_SPOOLINGDIR} --output ${XML}"
-         ${SCRIPTDIR}/git-to-freshports-xml.py --repo ${repo} --path ${REPODIR} --commit-range ${commit_hash1}..${commit_hash2} --spooling ${INGRESS_SPOOLINGDIR} --output ${XML}
+logfile "${SCRIPTDIR}/git-to-freshports-xml.py --repo ${repo} --path ${REPODIR} --branch ${branch} --commit-range ${commit_hash1}..${commit_hash2} --spooling ${INGRESS_SPOOLINGDIR} --output ${XML}"
+         ${SCRIPTDIR}/git-to-freshports-xml.py --repo ${repo} --path ${REPODIR} --branch ${branch} --commit-range ${commit_hash1}..${commit_hash2} --spooling ${INGRESS_SPOOLINGDIR} --output ${XML}
 
-${LOGGER} -t ${LOGGERTAG} ending
-logfile "ending"
+status=$?
+
+${LOGGER} -t ${LOGGERTAG} ending, git-to-freshports-xml.py exited $status
+logfile "ending, git-to-freshports-xml.py exited $status"
+
+exit $status
