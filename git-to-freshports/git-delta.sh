@@ -41,6 +41,11 @@ XML="${INGRESS_MSGDIR}/incoming"
 
 logfile "XML dir is $XML"
 
+#
+# The exit status: 0 if every repo and branch was processed, 1 if anything
+# failed.  check_git.sh and job-waiting.pl see it.  Each failure sets it;
+# nothing resets it, so a later success cannot hide an earlier failure.
+#
 result=0
 
 for repo in ${repos}
@@ -73,11 +78,18 @@ do
    cd ${REPODIR}
 
    # Bring local branch up-to-date with the local remote
+   #
+   # A failed fetch skips this repo only.  This used to be break, which
+   # skipped every repo after it as well (a network blip on doc meant ports
+   # and src were not looked at), and it logged the status of the [ test,
+   # always 0, rather than git's.
    logfile "Running: ${GIT} fetch:"
    ${GIT} fetch
-   if [ "$?" -ne "0" ]; then
-	logfile "Fatal error on git fetch: $?"
-	break;
+   fetch_status=$?
+   if [ "$fetch_status" -ne "0" ]; then
+	logfatal "FATAL - git fetch of repo '${repo}' in ${REPODIR} failed with status $fetch_status; skipping that repo"
+	result=1
+	continue
    fi
    logfile "fetch completed."
 
@@ -85,9 +97,13 @@ do
    NAME_OF_REMOTE=$REMOTE
    MAIN_BRANCH="$NAME_OF_REMOTE/$NAME_OF_HEAD"
 
-   ${GIT} for-each-ref --format '%(objecttype) %(refname)' \
-      | sed -n 's/^commit refs\/remotes\///p' \
-      | while read -r refname
+   #
+   # The list of branches is fed in with a here-document, not a pipe.
+   # A pipe would run this loop in a subshell: result, set below, never
+   # reached the exit at the end, so this script always exited 0, and an
+   # exit in the loop left only the subshell.
+   #
+   while read -r refname
    do
       case $refname in
          origin/main)
@@ -113,8 +129,9 @@ do
       then
          if [ "$refname" == "$MAIN_BRANCH" ]
          then
-            logfile "FATAL - '$MAIN_BRANCH' of repo '${repo}' must be set manually in ${LATEST_COMMITS_FILE} - special case the main branch because the best merge base is the most recent commit"
-            exit
+            logfatal "FATAL - '$MAIN_BRANCH' of repo '${repo}' must be set manually in ${LATEST_COMMITS_FILE} - special case the main branch because the best merge base is the most recent commit"
+            result=1
+            continue
          fi
          logfile "Not found. Let's find the first commit in this branch"
          first_ref=$(${GIT} merge-base $NAME_OF_REMOTE/$NAME_OF_HEAD $refname)
@@ -123,6 +140,7 @@ do
          if ! latest_commit_set ${repo} $refname $first_ref
          then
             logfatal "FATAL - could not record '$first_ref' for $refname of repo '${repo}' in ${LATEST_COMMITS_FILE}"
+            result=1
             continue
          fi
          STARTPOINT=$first_ref
@@ -134,6 +152,7 @@ do
       if ! ${GIT} cat-file -e "${STARTPOINT}^{commit}"
       then
          logfatal "FATAL - '$STARTPOINT' for $refname, from ${LATEST_COMMITS_FILE}, is not a commit in ${REPODIR}"
+         result=1
          continue
       fi
 
@@ -162,9 +181,9 @@ do
          logfile "${SCRIPTDIR}/git-to-freshports-xml.py --repo ${repo} --path ${REPODIR} --branch $BRANCH --commit-range $STARTPOINT..$ENDPOINT --spooling ${INGRESS_SPOOLINGDIR} --output ${XML}"
                   ${SCRIPTDIR}/git-to-freshports-xml.py --repo ${repo} --path ${REPODIR} --branch $BRANCH --commit-range $STARTPOINT..$ENDPOINT --spooling ${INGRESS_SPOOLINGDIR} --output ${XML}
 
-         result=$?
-         logfile "${SCRIPTDIR}/git-to-freshports-xml.py result: $result"
-         if [ "$result" == "0" ]
+         xml_status=$?
+         logfile "${SCRIPTDIR}/git-to-freshports-xml.py result: $xml_status"
+         if [ "$xml_status" == "0" ]
          then
             logfile "new_latest = ${ENDPOINT}"
 
@@ -173,13 +192,17 @@ do
             if ! latest_commit_set ${repo} ${refname} ${ENDPOINT}
             then
                logfatal "FATAL - could not record '${ENDPOINT}' for ${refname} of repo '${repo}' in ${LATEST_COMMITS_FILE}: these commits will be processed again"
+               result=1
             fi
          else
-            logfatal "FATAL eror with git-to-freshports-xml.py result: $result"
+            logfatal "FATAL error with git-to-freshports-xml.py for $refname of repo '${repo}': status $xml_status"
+            result=1
          fi
       fi
 
-   done
+   done <<EOF
+$(${GIT} for-each-ref --format '%(objecttype) %(refname)' | sed -n 's/^commit refs\/remotes\///p')
+EOF
 done
 
 logfile "Ending"
