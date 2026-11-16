@@ -74,7 +74,8 @@ do
 
    # empty means error
    if [  "${dir}" == "" ]; then
-      logfile "FATAL error, repo='${repo}' is unknown: cannot translate it to a directory name"
+      logfatal "FATAL error, repo='${repo}' is unknown: cannot translate it to a directory name; skipping that repo"
+      result=1
       continue
    fi
 
@@ -85,7 +86,8 @@ do
    if [ -d ${REPODIR} ]; then
       logfile "REPODIR='${REPODIR}' exists"
    else
-      logfile "FATAL error, REPODIR='${REPODIR}' is not a directory"
+      logfatal "FATAL error, REPODIR='${REPODIR}' is not a directory; skipping repo '${repo}'"
+      result=1
       continue
    fi
 
