@@ -177,6 +177,14 @@ def xml_text(s) -> str:
     """
     return ''.join(c for c in str(s) if valid_xml_char_ordinal(c))
 
+def xml_losses(s) -> int:
+    """How many characters xml_text() drops from s.
+
+    Used to set EncodingLosses, which ingress stores in
+    commit_log.encoding_losses.
+    """
+    return sum(1 for c in str(s) if not valid_xml_char_ordinal(c))
+
 def commit_subject(message: str) -> str:
     """The first non-blank line of the message, or '' for an empty message.
 
@@ -247,7 +255,8 @@ def main():
         log.debug("Writing commit message")
         text = ET.SubElement(update, 'LOG')
         # strip out any non-XML characters
-        text.text = xml_text(commit.message.strip())
+        message = commit.message.strip()
+        text.text = xml_text(message)
 
         log.debug("Writing author")
         people = ET.SubElement(update, 'PEOPLE')
@@ -256,8 +265,15 @@ def main():
 
         ET.SubElement(people, 'AUTHOR',    AuthorName=xml_text(commit.author.name),       AuthorEmail=xml_text(commit.author.email))
 
+        # Characters xml_text() drops, counted so EncodingLosses is true when
+        # the stored text differs from the commit.  The subject is part of
+        # the message, so it is not counted twice.  Paths are added below.
+        losses = sum(xml_losses(s) for s in (message,
+                                             commit.committer.name, commit.committer.email,
+                                             commit.author.name,    commit.author.email))
+
         log.debug("Writing commit hash")
-        ET.SubElement(update, 'COMMIT', Hash=str(commit.id), HashShort=commit.short_id,
+        commit_element = ET.SubElement(update, 'COMMIT', Hash=str(commit.id), HashShort=commit.short_id,
                       Subject=subject, EncodingLosses="false", Repository=config['repo'])
 
         files = ET.SubElement(update, 'FILES')
@@ -286,6 +302,14 @@ def main():
             else:  # M and T types
                 log.debug(f"Writing change: {diff_delta.old_file.path}")
                 ET.SubElement(files, 'FILE', Action='Modify', Path=xml_text(diff_delta.old_file.path))
+
+        losses += sum(xml_losses(diff_delta.new_file.path if diff_delta.status_char() == 'A'
+                                 else diff_delta.old_file.path)
+                      for diff_delta in diff.deltas)
+        if losses:
+            commit_element.set('EncodingLosses', 'true')
+            log.warning(f"Commit {str(commit.id)}: dropped {losses} character(s) which XML cannot hold; "
+                        f"EncodingLosses is true")
 
         file_name = (f"{commit_datetime.year}.{commit_datetime.month:02d}.{commit_datetime.day:02d}."
                      f"{commit_datetime.hour:02d}.{commit_datetime.minute:02d}.{commit_datetime.second:02d}."

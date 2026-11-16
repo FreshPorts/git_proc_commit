@@ -111,3 +111,38 @@ def test_range_not_on_the_line_is_refused(git_repo: pygit2.Repository, tmp_path:
         run(git_repo, tmp_path, f'--commit-range={hash_of(newer)}..{hash_of(older)}')
     assert exit_info.value.code == 1
     assert list(tmp_path.iterdir()) == [], "Nothing may be written for a refused range"
+
+
+def encoding_losses(xml_file: Path) -> str:
+    """The EncodingLosses attribute of the one COMMIT element in an XML file."""
+    from lxml import etree
+    return etree.parse(str(xml_file)).find('.//COMMIT').get('EncodingLosses')
+
+
+def test_encoding_losses_false_for_clean_commit(git_repo: pygit2.Repository, tmp_path: Path):
+    commit = git_repo.revparse_single('HEAD')
+
+    result_files = run(git_repo, tmp_path, f'--single-commit={hash_of(commit)}')
+    assert encoding_losses(result_files[0]) == 'false'
+
+
+def test_encoding_losses_true_when_characters_are_dropped(tmp_path: Path):
+    # The message ends in Ctrl-E, as pasted terminal output sometimes does
+    # (ports 71ef236b38bf).  XML cannot hold it, so it is dropped from LOG,
+    # and EncodingLosses must say so.
+    repo_dir = tmp_path / 'repo'
+    out_dir = tmp_path / 'out'
+    out_dir.mkdir()
+    repo_dir.mkdir()
+    repo = pygit2.init_repository(repo_dir, flags=0)
+    (repo_dir / 'a.txt').open('wb').close()
+    repo.index.add_all()
+    repo.index.write()
+    signature = pygit2.Signature('Alice Author', 'alice@authors.tld')
+    commit_id = repo.create_commit('HEAD', signature, signature,
+                                   "Fix the build\n\nerror: was here\x05\n",
+                                   repo.index.write_tree(), [])
+
+    result_files = run(repo, out_dir, f'--single-commit={commit_id}')
+    assert encoding_losses(result_files[0]) == 'true'
+    assert '\x05' not in result_files[0].read_text()
