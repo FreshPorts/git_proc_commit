@@ -5,6 +5,7 @@
 
 if [ ! -f /usr/local/etc/freshports/config.sh ]
 then
+	/usr/bin/logger -p local3.err -t FreshPorts "/usr/local/etc/freshports/config.sh not found by $0"
 	echo "/usr/local/etc/freshports/config.sh not found by $0"
 	exit 1
 fi
